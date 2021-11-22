@@ -87,6 +87,8 @@ func (cli *DaemonCli) start(opts *daemonOptions) (err error) {
 		return nil
 	}
 
+	configureProxyEnv(cli.Config)
+
 	warnOnDeprecatedConfigOptions(cli.Config)
 
 	if err := configureDaemonLogs(cli.Config); err != nil {
@@ -118,7 +120,7 @@ func (cli *DaemonCli) start(opts *daemonOptions) (err error) {
 
 	// return human-friendly error before creating files
 	if runtime.GOOS == "linux" && os.Geteuid() != 0 {
-		return fmt.Errorf("dockerd needs to be started with root. To see how to run dockerd in rootless mode with unprivileged user, see the documentation")
+		return fmt.Errorf("dockerd needs to be started with root privileges. To run dockerd in rootless mode as an unprivileged user, see https://docs.docker.com/go/rootless/")
 	}
 
 	if err := setDefaultUmask(); err != nil {
@@ -778,4 +780,30 @@ func configureDaemonLogs(conf *config.Config) error {
 		FullTimestamp:   true,
 	})
 	return nil
+}
+
+func configureProxyEnv(conf *config.Config) {
+	if p := conf.HTTPProxy; p != "" {
+		overrideProxyEnv("HTTP_PROXY", p)
+		overrideProxyEnv("http_proxy", p)
+	}
+	if p := conf.HTTPSProxy; p != "" {
+		overrideProxyEnv("HTTPS_PROXY", p)
+		overrideProxyEnv("https_proxy", p)
+	}
+	if p := conf.NoProxy; p != "" {
+		overrideProxyEnv("NO_PROXY", p)
+		overrideProxyEnv("no_proxy", p)
+	}
+}
+
+func overrideProxyEnv(name, val string) {
+	if oldVal := os.Getenv(name); oldVal != "" && oldVal != val {
+		logrus.WithFields(logrus.Fields{
+			"name":      name,
+			"old-value": config.MaskCredentials(oldVal),
+			"new-value": config.MaskCredentials(val),
+		}).Warn("overriding existing proxy variable with value from configuration")
+	}
+	_ = os.Setenv(name, val)
 }

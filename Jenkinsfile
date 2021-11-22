@@ -18,8 +18,8 @@ pipeline {
         booleanParam(name: 'ppc64le', defaultValue: false, description: 'PowerPC (ppc64le) Build/Test')
         booleanParam(name: 'windowsRS1', defaultValue: false, description: 'Windows 2016 (RS1) Build/Test')
         booleanParam(name: 'windowsRS5', defaultValue: true, description: 'Windows 2019 (RS5) Build/Test')
-        booleanParam(name: 'windows2022', defaultValue: true, description: 'Windows 2022 (SAC) Build/Test')
-        booleanParam(name: 'windows2022containerd', defaultValue: true, description: 'Windows 2022 (SAC) with containerd Build/Test')
+        booleanParam(name: 'windows2022', defaultValue: true, description: 'Windows 2022 (LTSC) Build/Test')
+        booleanParam(name: 'windows2022containerd', defaultValue: true, description: 'Windows 2022 (LTSC) with containerd Build/Test')
         booleanParam(name: 'dco', defaultValue: true, description: 'Run the DCO check')
     }
     environment {
@@ -27,7 +27,7 @@ pipeline {
         DOCKER_EXPERIMENTAL = '1'
         DOCKER_GRAPHDRIVER  = 'overlay2'
         APT_MIRROR          = 'cdn-fastly.deb.debian.org'
-        CHECK_CONFIG_COMMIT = '2b0755b936416834e14208c6c37b36977e67ea35'
+        CHECK_CONFIG_COMMIT = '33a3680e08d1007e72c3b3f1454f823d8e9948ee'
         TESTDEBUG           = '0'
         TIMEOUT             = '120m'
     }
@@ -1204,9 +1204,9 @@ pipeline {
                         SOURCES_SUBDIR         = 'gopath'
                         TESTRUN_DRIVE          = 'd'
                         TESTRUN_SUBDIR         = "CI"
-                        // TODO switch to mcr.microsoft.com/windows/servercore:2022 once published
-                        WINDOWS_BASE_IMAGE     = 'mcr.microsoft.com/windows/servercore/insider'
-                        WINDOWS_BASE_IMAGE_TAG = '10.0.20295.1'
+                        WINDOWS_BASE_IMAGE     = 'mcr.microsoft.com/windows/servercore'
+                        // Available tags can be found at https://mcr.microsoft.com/v2/windows/servercore/tags/list
+                        WINDOWS_BASE_IMAGE_TAG = 'ltsc2022'
                     }
                     agent {
                         node {
@@ -1267,10 +1267,9 @@ pipeline {
                         SOURCES_SUBDIR         = 'gopath'
                         TESTRUN_DRIVE          = 'd'
                         TESTRUN_SUBDIR         = "CI"
-                        // TODO switch to mcr.microsoft.com/windows/servercore:2022 once published
-                        WINDOWS_BASE_IMAGE     = 'mcr.microsoft.com/windows/servercore/insider'
-                        // Available tags can be found at https://mcr.microsoft.com/v2/windows/servercore/insider/tags/list
-                        WINDOWS_BASE_IMAGE_TAG = '10.0.20295.1'
+                        WINDOWS_BASE_IMAGE     = 'mcr.microsoft.com/windows/servercore'
+                        // Available tags can be found at https://mcr.microsoft.com/v2/windows/servercore/tags/list
+                        WINDOWS_BASE_IMAGE_TAG = 'ltsc2022'
                         DOCKER_WINDOWS_CONTAINERD_RUNTIME = '1'
                     }
                     agent {
@@ -1307,7 +1306,7 @@ pipeline {
                                 Write-Host -ForegroundColor Green "Creating ${bundleName}-bundles.zip"
 
                                 # archiveArtifacts does not support env-vars to , so save the artifacts in a fixed location
-                                Compress-Archive -Path "bundles/CIDUT.out", "bundles/CIDUT.err", "bundles/junit-report-*.xml" -CompressionLevel Optimal -DestinationPath "${bundleName}-bundles.zip"
+                                Compress-Archive -Path "bundles/CIDUT.out", "bundles/CIDUT.err", "bundles/containerd.out", "bundles/containerd.err", "bundles/junit-report-*.xml" -CompressionLevel Optimal -DestinationPath "${bundleName}-bundles.zip"
                                 '''
 
                                 archiveArtifacts artifacts: '*-bundles.zip', allowEmptyArchive: true

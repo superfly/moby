@@ -2,7 +2,6 @@ package daemon // import "github.com/docker/docker/daemon"
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 	"runtime"
 	"strings"
@@ -64,9 +63,9 @@ func (daemon *Daemon) SystemInfo() *types.Info {
 		Labels:             daemon.configStore.Labels,
 		ExperimentalBuild:  daemon.configStore.Experimental,
 		ServerVersion:      dockerversion.Version,
-		HTTPProxy:          maskCredentials(getEnvAny("HTTP_PROXY", "http_proxy")),
-		HTTPSProxy:         maskCredentials(getEnvAny("HTTPS_PROXY", "https_proxy")),
-		NoProxy:            getEnvAny("NO_PROXY", "no_proxy"),
+		HTTPProxy:          config.MaskCredentials(getConfigOrEnv(daemon.configStore.HTTPProxy, "HTTP_PROXY", "http_proxy")),
+		HTTPSProxy:         config.MaskCredentials(getConfigOrEnv(daemon.configStore.HTTPSProxy, "HTTPS_PROXY", "https_proxy")),
+		NoProxy:            getConfigOrEnv(daemon.configStore.NoProxy, "NO_PROXY", "no_proxy"),
 		LiveRestoreEnabled: daemon.configStore.LiveRestoreEnabled,
 		Isolation:          daemon.defaultIsolation,
 	}
@@ -172,11 +171,10 @@ func (daemon *Daemon) fillSecurityOptions(v *types.Info, sysInfo *sysinfo.SysInf
 		securityOptions = append(securityOptions, "name=apparmor")
 	}
 	if sysInfo.Seccomp && supportsSeccomp {
-		profile := daemon.seccompProfilePath
-		if profile == "" {
-			profile = "default"
+		if daemon.seccompProfilePath != config.SeccompProfileDefault {
+			v.Warnings = append(v.Warnings, "WARNING: daemon is not using the default seccomp profile")
 		}
-		securityOptions = append(securityOptions, fmt.Sprintf("name=seccomp,profile=%s", profile))
+		securityOptions = append(securityOptions, "name=seccomp,profile="+daemon.seccompProfilePath)
 	}
 	if selinux.GetEnabled() {
 		securityOptions = append(securityOptions, "name=selinux")
@@ -290,16 +288,6 @@ func osVersion() (version string) {
 	return version
 }
 
-func maskCredentials(rawURL string) string {
-	parsedURL, err := url.Parse(rawURL)
-	if err != nil || parsedURL.User == nil {
-		return rawURL
-	}
-	parsedURL.User = url.UserPassword("xxxxx", "xxxxx")
-	maskedURL := parsedURL.String()
-	return maskedURL
-}
-
 func getEnvAny(names ...string) string {
 	for _, n := range names {
 		if val := os.Getenv(n); val != "" {
@@ -307,4 +295,11 @@ func getEnvAny(names ...string) string {
 		}
 	}
 	return ""
+}
+
+func getConfigOrEnv(config string, env ...string) string {
+	if config != "" {
+		return config
+	}
+	return getEnvAny(env...)
 }

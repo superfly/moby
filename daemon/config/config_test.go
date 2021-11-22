@@ -1,7 +1,6 @@
 package config // import "github.com/docker/docker/daemon/config"
 
 import (
-	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
@@ -24,7 +23,7 @@ func TestDaemonConfigurationNotFound(t *testing.T) {
 }
 
 func TestDaemonBrokenConfiguration(t *testing.T) {
-	f, err := ioutil.TempFile("", "docker-config-")
+	f, err := os.CreateTemp("", "docker-config-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +76,7 @@ func TestFindConfigurationConflictsWithNamedOptions(t *testing.T) {
 }
 
 func TestDaemonConfigurationMergeConflicts(t *testing.T) {
-	f, err := ioutil.TempFile("", "docker-config-")
+	f, err := os.CreateTemp("", "docker-config-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +99,7 @@ func TestDaemonConfigurationMergeConflicts(t *testing.T) {
 }
 
 func TestDaemonConfigurationMergeConcurrent(t *testing.T) {
-	f, err := ioutil.TempFile("", "docker-config-")
+	f, err := os.CreateTemp("", "docker-config-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +115,7 @@ func TestDaemonConfigurationMergeConcurrent(t *testing.T) {
 }
 
 func TestDaemonConfigurationMergeConcurrentError(t *testing.T) {
-	f, err := ioutil.TempFile("", "docker-config-")
+	f, err := os.CreateTemp("", "docker-config-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +131,7 @@ func TestDaemonConfigurationMergeConcurrentError(t *testing.T) {
 }
 
 func TestDaemonConfigurationMergeConflictsWithInnerStructs(t *testing.T) {
-	f, err := ioutil.TempFile("", "docker-config-")
+	f, err := os.CreateTemp("", "docker-config-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -539,7 +538,7 @@ func TestReloadDefaultConfigNotExist(t *testing.T) {
 // TestReloadBadDefaultConfig tests that when `--config-file` is not set
 // and the default configuration file exists and is bad return an error
 func TestReloadBadDefaultConfig(t *testing.T) {
-	f, err := ioutil.TempFile("", "docker-config-")
+	f, err := os.CreateTemp("", "docker-config-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -578,4 +577,50 @@ func TestReloadWithDuplicateLabels(t *testing.T) {
 	flags.StringSlice("labels", lbls, "")
 	err := Reload(configFile, flags, func(c *Config) {})
 	assert.Check(t, err)
+}
+
+func TestMaskURLCredentials(t *testing.T) {
+	tests := []struct {
+		rawURL    string
+		maskedURL string
+	}{
+		{
+			rawURL:    "",
+			maskedURL: "",
+		}, {
+			rawURL:    "invalidURL",
+			maskedURL: "invalidURL",
+		}, {
+			rawURL:    "http://proxy.example.com:80/",
+			maskedURL: "http://proxy.example.com:80/",
+		}, {
+			rawURL:    "http://USER:PASSWORD@proxy.example.com:80/",
+			maskedURL: "http://xxxxx:xxxxx@proxy.example.com:80/",
+		}, {
+			rawURL:    "http://PASSWORD:PASSWORD@proxy.example.com:80/",
+			maskedURL: "http://xxxxx:xxxxx@proxy.example.com:80/",
+		}, {
+			rawURL:    "http://USER:@proxy.example.com:80/",
+			maskedURL: "http://xxxxx:xxxxx@proxy.example.com:80/",
+		}, {
+			rawURL:    "http://:PASSWORD@proxy.example.com:80/",
+			maskedURL: "http://xxxxx:xxxxx@proxy.example.com:80/",
+		}, {
+			rawURL:    "http://USER@docker:password@proxy.example.com:80/",
+			maskedURL: "http://xxxxx:xxxxx@proxy.example.com:80/",
+		}, {
+			rawURL:    "http://USER%40docker:password@proxy.example.com:80/",
+			maskedURL: "http://xxxxx:xxxxx@proxy.example.com:80/",
+		}, {
+			rawURL:    "http://USER%40docker:pa%3Fsword@proxy.example.com:80/",
+			maskedURL: "http://xxxxx:xxxxx@proxy.example.com:80/",
+		}, {
+			rawURL:    "http://USER%40docker:pa%3Fsword@proxy.example.com:80/hello%20world",
+			maskedURL: "http://xxxxx:xxxxx@proxy.example.com:80/hello%20world",
+		},
+	}
+	for _, test := range tests {
+		maskedURL := MaskCredentials(test.rawURL)
+		assert.Equal(t, maskedURL, test.maskedURL)
+	}
 }

@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 package overlay2 // import "github.com/docker/docker/daemon/graphdriver/overlay2"
@@ -7,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -165,7 +165,20 @@ func Init(home string, options []string, uidMaps, gidMaps []idtools.IDMap) (grap
 		logger.Warn(overlayutils.ErrDTypeNotSupported("overlay2", backingFs))
 	}
 
-	if err := idtools.MkdirAllAndChown(path.Join(home, linkDir), 0701, idtools.CurrentIdentity()); err != nil {
+	_, rootGID, err := idtools.GetRootUIDGID(uidMaps, gidMaps)
+	if err != nil {
+		return nil, err
+	}
+
+	cur := idtools.CurrentIdentity()
+	dirID := idtools.Identity{
+		UID: cur.UID,
+		GID: rootGID,
+	}
+	if err := idtools.MkdirAllAndChown(home, 0710, dirID); err != nil {
+		return nil, err
+	}
+	if err := idtools.MkdirAllAndChown(path.Join(home, linkDir), 0700, cur); err != nil {
 		return nil, err
 	}
 
@@ -344,12 +357,15 @@ func (d *Driver) create(id, parent string, opts *graphdriver.CreateOpts) (retErr
 		return err
 	}
 	root := idtools.Identity{UID: rootUID, GID: rootGID}
-	current := idtools.CurrentIdentity()
+	dirID := idtools.Identity{
+		UID: idtools.CurrentIdentity().UID,
+		GID: rootGID,
+	}
 
-	if err := idtools.MkdirAllAndChown(path.Dir(dir), 0701, current); err != nil {
+	if err := idtools.MkdirAllAndChown(path.Dir(dir), 0710, dirID); err != nil {
 		return err
 	}
-	if err := idtools.MkdirAndChown(dir, 0701, current); err != nil {
+	if err := idtools.MkdirAndChown(dir, 0710, dirID); err != nil {
 		return err
 	}
 
@@ -384,7 +400,7 @@ func (d *Driver) create(id, parent string, opts *graphdriver.CreateOpts) (retErr
 	}
 
 	// Write link id to link file
-	if err := ioutil.WriteFile(path.Join(dir, "link"), []byte(lid), 0644); err != nil {
+	if err := os.WriteFile(path.Join(dir, "link"), []byte(lid), 0644); err != nil {
 		return err
 	}
 
@@ -397,7 +413,7 @@ func (d *Driver) create(id, parent string, opts *graphdriver.CreateOpts) (retErr
 		return err
 	}
 
-	if err := ioutil.WriteFile(path.Join(d.dir(parent), "committed"), []byte{}, 0600); err != nil {
+	if err := os.WriteFile(path.Join(d.dir(parent), "committed"), []byte{}, 0600); err != nil {
 		return err
 	}
 
@@ -406,7 +422,7 @@ func (d *Driver) create(id, parent string, opts *graphdriver.CreateOpts) (retErr
 		return err
 	}
 	if lower != "" {
-		if err := ioutil.WriteFile(path.Join(dir, lowerFile), []byte(lower), 0666); err != nil {
+		if err := os.WriteFile(path.Join(dir, lowerFile), []byte(lower), 0666); err != nil {
 			return err
 		}
 	}
@@ -443,13 +459,13 @@ func (d *Driver) getLower(parent string) (string, error) {
 	}
 
 	// Read Parent link fileA
-	parentLink, err := ioutil.ReadFile(path.Join(parentDir, "link"))
+	parentLink, err := os.ReadFile(path.Join(parentDir, "link"))
 	if err != nil {
 		return "", err
 	}
 	lowers := []string{path.Join(linkDir, string(parentLink))}
 
-	parentLower, err := ioutil.ReadFile(path.Join(parentDir, lowerFile))
+	parentLower, err := os.ReadFile(path.Join(parentDir, lowerFile))
 	if err == nil {
 		parentLowers := strings.Split(string(parentLower), ":")
 		lowers = append(lowers, parentLowers...)
@@ -466,7 +482,7 @@ func (d *Driver) dir(id string) string {
 
 func (d *Driver) getLowerDirs(id string) ([]string, error) {
 	var lowersArray []string
-	lowers, err := ioutil.ReadFile(path.Join(d.dir(id), lowerFile))
+	lowers, err := os.ReadFile(path.Join(d.dir(id), lowerFile))
 	if err == nil {
 		for _, s := range strings.Split(string(lowers), ":") {
 			lp, err := os.Readlink(path.Join(d.home, s))
@@ -489,7 +505,7 @@ func (d *Driver) Remove(id string) error {
 	d.locker.Lock(id)
 	defer d.locker.Unlock(id)
 	dir := d.dir(id)
-	lid, err := ioutil.ReadFile(path.Join(dir, "link"))
+	lid, err := os.ReadFile(path.Join(dir, "link"))
 	if err == nil {
 		if len(lid) == 0 {
 			logger.Errorf("refusing to remove empty link for layer %v", id)
@@ -514,7 +530,7 @@ func (d *Driver) Get(id, mountLabel string) (_ containerfs.ContainerFS, retErr e
 	}
 
 	diffDir := path.Join(dir, diffDirName)
-	lowers, err := ioutil.ReadFile(path.Join(dir, lowerFile))
+	lowers, err := os.ReadFile(path.Join(dir, lowerFile))
 	if err != nil {
 		// If no lower, just return diff directory
 		if os.IsNotExist(err) {
@@ -618,7 +634,7 @@ func (d *Driver) Put(id string) error {
 	d.locker.Lock(id)
 	defer d.locker.Unlock(id)
 	dir := d.dir(id)
-	_, err := ioutil.ReadFile(path.Join(dir, lowerFile))
+	_, err := os.ReadFile(path.Join(dir, lowerFile))
 	if err != nil {
 		// If no lower, no mount happened and just return directly
 		if os.IsNotExist(err) {

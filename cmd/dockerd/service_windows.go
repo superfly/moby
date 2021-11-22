@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -293,7 +293,7 @@ func initService(daemonCli *DaemonCli) (bool, bool, error) {
 	}
 
 	logrus.AddHook(&etwHook{log})
-	logrus.SetOutput(ioutil.Discard)
+	logrus.SetOutput(io.Discard)
 
 	service = h
 	go func() {
@@ -372,7 +372,7 @@ Loop:
 
 func initPanicFile(path string) error {
 	var err error
-	panicFile, err = os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0)
+	panicFile, err = os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o200)
 	if err != nil {
 		return err
 	}

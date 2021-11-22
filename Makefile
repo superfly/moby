@@ -82,12 +82,6 @@ DOCKER_ENVS := \
 	-e VALIDATE_REPO \
 	-e VALIDATE_BRANCH \
 	-e VALIDATE_ORIGIN_BRANCH \
-	-e HTTP_PROXY \
-	-e HTTPS_PROXY \
-	-e NO_PROXY \
-	-e http_proxy \
-	-e https_proxy \
-	-e no_proxy \
 	-e VERSION \
 	-e PLATFORM \
 	-e DEFAULT_PRODUCT_LICENSE \
@@ -264,7 +258,7 @@ swagger-docs: ## preview the API documentation
 	@docker run --rm -v $(PWD)/api/swagger.yaml:/usr/share/nginx/html/swagger.yaml \
 		-e 'REDOC_OPTIONS=hide-hostname="true" lazy-rendering' \
 		-p $(SWAGGER_DOCS_PORT):80 \
-		bfirsh/redoc:1.6.2
+		bfirsh/redoc:1.14.0
 
 .PHONY: buildx
 ifdef USE_BUILDX
