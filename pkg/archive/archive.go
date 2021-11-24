@@ -893,8 +893,8 @@ func TarWithOptions(srcPath string, options *TarOptions) (io.ReadCloser, error) 
 			rebaseName := options.RebaseNames[include]
 
 			var (
-				parentMatched []bool
-				parentDirs    []string
+				parentMatchInfo []fileutils.MatchInfo
+				parentDirs      []string
 			)
 
 			walkRoot := getWalkRoot(srcPath, include)
@@ -929,13 +929,14 @@ func TarWithOptions(srcPath string, options *TarOptions) (io.ReadCloser, error) 
 							break
 						}
 						parentDirs = parentDirs[:len(parentDirs)-1]
-						parentMatched = parentMatched[:len(parentMatched)-1]
+						parentMatchInfo = parentMatchInfo[:len(parentMatchInfo)-1]
 					}
 
-					if len(parentMatched) != 0 {
-						skip, err = pm.MatchesUsingParentResult(relFilePath, parentMatched[len(parentMatched)-1])
+					var matchInfo fileutils.MatchInfo
+					if len(parentMatchInfo) != 0 {
+						skip, matchInfo, err = pm.MatchesUsingParentResults(relFilePath, parentMatchInfo[len(parentMatchInfo)-1])
 					} else {
-						skip, err = pm.MatchesOrParentMatches(relFilePath)
+						skip, matchInfo, err = pm.MatchesUsingParentResults(relFilePath, fileutils.MatchInfo{})
 					}
 					if err != nil {
 						logrus.Errorf("Error matching %s: %v", relFilePath, err)
@@ -944,7 +945,7 @@ func TarWithOptions(srcPath string, options *TarOptions) (io.ReadCloser, error) 
 
 					if f.IsDir() {
 						parentDirs = append(parentDirs, relFilePath)
-						parentMatched = append(parentMatched, skip)
+						parentMatchInfo = append(parentMatchInfo, matchInfo)
 					}
 				}
 
